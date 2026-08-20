@@ -64,6 +64,7 @@ function makeFusion(overrides: Partial<FusionEvent> = {}): FusionEvent {
         },
         fusion: 'A::B',
         eventLabel: '',
+        ncbiBuild: '',
         totalReadSupport: 5,
         callMethod: 'FUSION',
         frameCallMethod: 'In_frame',

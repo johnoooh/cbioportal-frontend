@@ -165,3 +165,38 @@ describe('real msktarget export shapes', () => {
         });
     });
 });
+
+describe('per-row genome build', () => {
+    it('carries the row build through from the export', () => {
+        assert.equal(
+            convertStructuralVariantToFusionEvent(TARGET_RNA_FUSION).ncbiBuild,
+            'GRCh38'
+        );
+        assert.equal(
+            convertStructuralVariantToFusionEvent(IMPACT_DNA_SV).ncbiBuild,
+            'GRCh37'
+        );
+    });
+
+    it('normalises the hg-style aliases the portal also emits', () => {
+        const hg38 = makeRealSV({
+            ...TARGET_RNA_FUSION,
+            ncbiBuild: 'hg38',
+        } as Partial<StructuralVariant>);
+        assert.equal(
+            convertStructuralVariantToFusionEvent(hg38).ncbiBuild,
+            'GRCh38'
+        );
+    });
+
+    it('is empty when the export omits the build', () => {
+        const noBuild = makeRealSV({
+            ...TARGET_RNA_FUSION,
+            ncbiBuild: 'NA',
+        } as Partial<StructuralVariant>);
+        assert.equal(
+            convertStructuralVariantToFusionEvent(noBuild).ncbiBuild,
+            ''
+        );
+    });
+});

@@ -25,6 +25,7 @@ function makeFusion(overrides: Partial<FusionEvent> = {}): FusionEvent {
         },
         fusion: 'TMPRSS2::ERG',
         eventLabel: '',
+        ncbiBuild: '',
         totalReadSupport: 10,
         callMethod: '',
         frameCallMethod: '',

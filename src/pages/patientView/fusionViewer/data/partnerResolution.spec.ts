@@ -179,6 +179,7 @@ function makeFusion(overrides: Partial<FusionEvent>): FusionEvent {
         gene2: makeGene('GENE_B', '2', 2000, 'ENST_B'),
         fusion: 'GENE_A::GENE_B',
         eventLabel: '',
+        ncbiBuild: '',
         totalReadSupport: 10,
         callMethod: 'SV',
         frameCallMethod: 'In_frame',

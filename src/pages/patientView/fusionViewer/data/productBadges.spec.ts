@@ -87,3 +87,37 @@ describe('resolveCallerState with no caller identity', () => {
         );
     });
 });
+
+describe('resolveCallerState when the caller only partly reported', () => {
+    // Real exports frequently carry site1EnsemblTranscriptId but not site2.
+    // The 3' side then falls back to MSK canonical. That is the app's own
+    // default, not a user override, so it must not be reported as one.
+    const partial = {
+        gene1: { selectedTranscriptId: 'ENST_5' },
+        gene2: { selectedTranscriptId: '' },
+        callMethod: 'AF',
+    } as FusionEvent;
+
+    it('treats an unreported side as no claim, not a mismatch', () => {
+        const s = resolveCallerState(partial, 'ENST_5', 'ENST_CANONICAL');
+        assert.equal(s.kind, 'called');
+    });
+
+    it('still detects a genuine override on the side that was reported', () => {
+        const s = resolveCallerState(partial, 'ENST_OTHER', 'ENST_CANONICAL');
+        assert.equal(s.kind, 'userSelected');
+    });
+
+    it('keeps a DNA variant class visible when no side was reported', () => {
+        const noneReported = {
+            gene1: { selectedTranscriptId: '' },
+            gene2: { selectedTranscriptId: '' },
+            callMethod: 'INVERSION',
+        } as FusionEvent;
+        const s = resolveCallerState(noneReported, 'ENST_A', 'ENST_B');
+        assert.equal(s.kind, 'called');
+        if (s.kind === 'called') {
+            assert.equal(s.rawCallMethod, 'INVERSION');
+        }
+    });
+});

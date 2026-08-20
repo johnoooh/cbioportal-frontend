@@ -99,6 +99,18 @@ export interface FusionEvent {
      * resolved 5'/3' partner symbols.
      */
     eventLabel: string;
+    /**
+     * The reference genome this ROW's coordinates are on, normalised to
+     * 'GRCh37' / 'GRCh38' ('' when the export omits it).
+     *
+     * The viewer resolves transcripts against a single study-level build taken
+     * from the study's `referenceGenome`. A study cannot declare two builds, so
+     * an export that mixes them (GRCh37 DNA SVs alongside GRCh38 RNA fusions)
+     * will silently plot one of them against the wrong transcript models. This
+     * field exists so that disagreement can be DETECTED and surfaced rather
+     * than rendered as though it were fine.
+     */
+    ncbiBuild: string;
     totalReadSupport: number;
     callMethod: string;
     frameCallMethod: string;

@@ -65,6 +65,7 @@ function makeFusion(overrides: Partial<FusionEvent> = {}): FusionEvent {
         },
         fusion: 'ALK::EML4',
         eventLabel: '',
+        ncbiBuild: '',
         totalReadSupport: 15,
         callMethod: 'FUSION',
         frameCallMethod: 'In_frame',
@@ -97,6 +98,53 @@ describe('FusionViewerStore', () => {
 
     afterEach(() => {
         disposeAutorun();
+    });
+
+    // -------------------------------------------------------------------
+    // genome build mismatch detection
+    // -------------------------------------------------------------------
+    describe('buildMismatch', () => {
+        it('is false when every row agrees with the study build', () => {
+            store.setStructuralVariants(
+                [makeFusion({ ncbiBuild: 'GRCh37' })] as any,
+                'hg19'
+            );
+
+            assert.isFalse(store.hasBuildMismatch);
+        });
+
+        it('is true when a row is on a different build than the study', () => {
+            // The real msktarget case: study declares GRCh37, but the RNA
+            // fusion rows carry GRCh38 coordinates. Resolving those against
+            // GRCh37 transcript models puts the breakpoint in the wrong exon.
+            store.setStructuralVariants(
+                [makeFusion({ ncbiBuild: 'GRCh38' })] as any,
+                'hg19'
+            );
+
+            assert.isTrue(store.hasBuildMismatch);
+        });
+
+        it('reports the builds actually present so the warning can name them', () => {
+            store.setStructuralVariants(
+                [
+                    makeFusion({ id: 'a', ncbiBuild: 'GRCh38' }),
+                    makeFusion({ id: 'b', ncbiBuild: 'GRCh37' }),
+                ] as any,
+                'hg19'
+            );
+
+            assert.deepEqual(store.rowGenomeBuilds, ['GRCh37', 'GRCh38']);
+        });
+
+        it('does not flag rows whose build the export omitted', () => {
+            store.setStructuralVariants(
+                [makeFusion({ ncbiBuild: '' })] as any,
+                'hg19'
+            );
+
+            assert.isFalse(store.hasBuildMismatch);
+        });
     });
 
     // -------------------------------------------------------------------

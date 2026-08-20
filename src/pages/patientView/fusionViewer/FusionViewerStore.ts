@@ -210,6 +210,39 @@ export class FusionViewerStore {
      * a mismatch. Falls back to the raw selectedFusion if transcripts have
      * not loaded or connectionType is missing.
      */
+    /**
+     * The distinct per-row genome builds present in the loaded data, sorted.
+     * Rows whose build the export omitted are excluded -- an absent value is
+     * unknown, not a disagreement.
+     */
+    @computed
+    public get rowGenomeBuilds(): string[] {
+        const builds = new Set<string>();
+        this.fusions.forEach(f => {
+            if (f.ncbiBuild) {
+                builds.add(f.ncbiBuild);
+            }
+        });
+        return Array.from(builds).sort();
+    }
+
+    /**
+     * True when any row's coordinates are on a build other than the one the
+     * viewer resolves transcripts against.
+     *
+     * Transcripts are fetched for a single study-level build, so a mismatched
+     * row has its breakpoint compared against the wrong exon coordinates --
+     * a shift of hundreds of kilobases, which silently lands the breakpoint in
+     * the wrong exon or off the transcript entirely. Surfaced in the UI rather
+     * than corrected here: picking the right models per row would mean fetching
+     * two builds at once, and the underlying problem is that a cBioPortal study
+     * cannot declare more than one reference genome.
+     */
+    @computed
+    public get hasBuildMismatch(): boolean {
+        return this.rowGenomeBuilds.some(b => b !== this.genomeBuild);
+    }
+
     @computed
     public get canonicalFusion(): FusionEvent | undefined {
         const raw = this.selectedFusion;

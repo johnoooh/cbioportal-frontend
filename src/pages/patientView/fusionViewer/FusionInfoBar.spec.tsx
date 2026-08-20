@@ -24,6 +24,7 @@ function makeFusion(): FusionEvent {
         },
         fusion: 'TMPRSS2::ERG',
         eventLabel: '',
+        ncbiBuild: '',
         totalReadSupport: 10,
         callMethod: '',
         frameCallMethod: '',
@@ -71,5 +72,40 @@ describe('FusionInfoBar', () => {
         assert.equal(circos.prop('selectedFusionId'), store.selectedFusionId);
         assert.equal(circos.prop('genomeBuild'), store.genomeBuild);
         assert.deepEqual(circos.prop('fusions'), store.fusions);
+    });
+});
+
+describe('FusionInfoBar genome build warning', () => {
+    it('marks the build badge when a row disagrees with the study build', () => {
+        const store = {
+            ...makeStore(),
+            genomeBuild: 'GRCh37' as const,
+            rowGenomeBuilds: ['GRCh38'],
+            hasBuildMismatch: true,
+        };
+
+        const wrapper = mount(<FusionInfoBar store={store as any} />);
+
+        assert.equal(
+            wrapper.find('span[data-test="genome-build-mismatch"]').length,
+            1
+        );
+        assert.include(wrapper.text(), 'GRCh38');
+    });
+
+    it('shows a plain build badge when everything agrees', () => {
+        const store = {
+            ...makeStore(),
+            genomeBuild: 'GRCh37' as const,
+            rowGenomeBuilds: ['GRCh37'],
+            hasBuildMismatch: false,
+        };
+
+        const wrapper = mount(<FusionInfoBar store={store as any} />);
+
+        assert.equal(
+            wrapper.find('span[data-test="genome-build-mismatch"]').length,
+            0
+        );
     });
 });

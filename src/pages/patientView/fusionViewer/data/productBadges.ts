@@ -30,13 +30,26 @@ function called3p(fusion: FusionEvent): string {
     return fusion.gene2 ? fusion.gene2.selectedTranscriptId : '';
 }
 
-/** True when the visualized combo equals the caller-reported (called) combo. */
+/**
+ * True when the visualized combo contradicts nothing the caller reported.
+ *
+ * The comparison runs ONLY over sides where the caller actually made a claim.
+ * Real exports often carry `site1EnsemblTranscriptId` but not `site2`, leaving
+ * that side to fall back to MSK canonical -- the app's own default, not a user
+ * choice. Requiring both sides to match would report every such fusion as an
+ * "Alternate isoform" and accuse the user of an override they never made.
+ * A side with no reported transcript is therefore "no claim", not a mismatch.
+ */
 export function isCalledCombo(
     fusion: FusionEvent,
     active5pId: string,
     active3pId: string
 ): boolean {
-    return active5pId === called5p(fusion) && active3pId === called3p(fusion);
+    const c5 = called5p(fusion);
+    const c3 = called3p(fusion);
+    const matches5p = !c5 || active5pId === c5;
+    const matches3p = !c3 || active3pId === c3;
+    return matches5p && matches3p;
 }
 
 /** Label naming the called transcript combo, e.g. "ENST_5::ENST_3". */
