@@ -75,37 +75,12 @@ describe('FusionInfoBar', () => {
     });
 });
 
-describe('FusionInfoBar genome build warning', () => {
-    it('marks the build badge when a row disagrees with the study build', () => {
-        const store = {
-            ...makeStore(),
-            genomeBuild: 'GRCh37' as const,
-            rowGenomeBuilds: ['GRCh38'],
-            hasBuildMismatch: true,
-        };
+describe('FusionInfoBar genome build badge', () => {
+    it('shows the build the store resolved for the selected row', () => {
+        const store = { ...makeStore(), genomeBuild: 'GRCh38' as const };
 
         const wrapper = mount(<FusionInfoBar store={store as any} />);
 
-        assert.equal(
-            wrapper.find('span[data-test="genome-build-mismatch"]').length,
-            1
-        );
         assert.include(wrapper.text(), 'GRCh38');
-    });
-
-    it('shows a plain build badge when everything agrees', () => {
-        const store = {
-            ...makeStore(),
-            genomeBuild: 'GRCh37' as const,
-            rowGenomeBuilds: ['GRCh37'],
-            hasBuildMismatch: false,
-        };
-
-        const wrapper = mount(<FusionInfoBar store={store as any} />);
-
-        assert.equal(
-            wrapper.find('span[data-test="genome-build-mismatch"]').length,
-            0
-        );
     });
 });

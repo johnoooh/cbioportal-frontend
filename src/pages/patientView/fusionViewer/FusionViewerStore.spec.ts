@@ -101,31 +101,31 @@ describe('FusionViewerStore', () => {
     });
 
     // -------------------------------------------------------------------
-    // genome build mismatch detection
+    // genome build resolution
     // -------------------------------------------------------------------
-    describe('buildMismatch', () => {
-        it('is false when every row agrees with the study build', () => {
-            store.setStructuralVariants(
-                [makeFusion({ ncbiBuild: 'GRCh37' })] as any,
-                'hg19'
-            );
-
-            assert.isFalse(store.hasBuildMismatch);
-        });
-
-        it('is true when a row is on a different build than the study', () => {
-            // The real msktarget case: study declares GRCh37, but the RNA
-            // fusion rows carry GRCh38 coordinates. Resolving those against
-            // GRCh37 transcript models puts the breakpoint in the wrong exon.
+    describe('genomeBuild', () => {
+        it('uses the build the SV table declares for the selected row', () => {
+            // msktarget declares GRCh37 study-wide, but its RNA fusion rows
+            // carry GRCh38 coordinates. The row is the authority: transcripts
+            // must be fetched for the build the breakpoints are actually on.
             store.setStructuralVariants(
                 [makeFusion({ ncbiBuild: 'GRCh38' })] as any,
                 'hg19'
             );
 
-            assert.isTrue(store.hasBuildMismatch);
+            assert.equal(store.genomeBuild, 'GRCh38');
         });
 
-        it('reports the builds actually present so the warning can name them', () => {
+        it('falls back to the study build when the row omits it', () => {
+            store.setStructuralVariants(
+                [makeFusion({ ncbiBuild: '' })] as any,
+                'hg19'
+            );
+
+            assert.equal(store.genomeBuild, 'GRCh37');
+        });
+
+        it('follows the selected row when rows disagree', () => {
             store.setStructuralVariants(
                 [
                     makeFusion({ id: 'a', ncbiBuild: 'GRCh38' }),
@@ -133,17 +133,11 @@ describe('FusionViewerStore', () => {
                 ] as any,
                 'hg19'
             );
+            assert.equal(store.genomeBuild, 'GRCh38');
 
-            assert.deepEqual(store.rowGenomeBuilds, ['GRCh37', 'GRCh38']);
-        });
+            store.selectFusion('b');
 
-        it('does not flag rows whose build the export omitted', () => {
-            store.setStructuralVariants(
-                [makeFusion({ ncbiBuild: '' })] as any,
-                'hg19'
-            );
-
-            assert.isFalse(store.hasBuildMismatch);
+            assert.equal(store.genomeBuild, 'GRCh37');
         });
     });
 

@@ -93,16 +93,6 @@ export const inlineStyles = {
         gap: 6,
         paddingTop: 4,
     },
-    genomeBuildMismatch: {
-        fontSize: 11,
-        fontWeight: 600 as const,
-        color: '#8a6d3b',
-        padding: '2px 8px',
-        backgroundColor: '#fcf8e3',
-        border: '1px solid #e0c86f',
-        borderRadius: 3,
-        cursor: 'help',
-    },
     genomeBuildLabel: {
         fontSize: 11,
         fontWeight: 600 as const,

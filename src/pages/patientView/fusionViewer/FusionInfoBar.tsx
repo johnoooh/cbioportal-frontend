@@ -232,37 +232,9 @@ export class FusionInfoBar extends React.Component<IFusionInfoBarProps> {
                         </label>
                     </div>
 
-                    {store.hasBuildMismatch ? (
-                        <DefaultTooltip
-                            placement="top"
-                            overlay={
-                                <div style={{ maxWidth: 300 }}>
-                                    <strong>Genome build mismatch</strong>
-                                    <br />
-                                    This study declares {store.genomeBuild}, but
-                                    some rows carry{' '}
-                                    {store.rowGenomeBuilds.join(' / ')}{' '}
-                                    coordinates. Transcripts are fetched for the
-                                    study build only, so breakpoints on the
-                                    other build are drawn against the wrong exon
-                                    coordinates and may appear in the wrong
-                                    exon.
-                                </div>
-                            }
-                        >
-                            <span
-                                style={inlineStyles.genomeBuildMismatch}
-                                data-test="genome-build-mismatch"
-                            >
-                                {'\u26a0'} {store.genomeBuild} vs{' '}
-                                {store.rowGenomeBuilds.join('/')}
-                            </span>
-                        </DefaultTooltip>
-                    ) : (
-                        <span style={inlineStyles.genomeBuildLabel}>
-                            {store.genomeBuild}
-                        </span>
-                    )}
+                    <span style={inlineStyles.genomeBuildLabel}>
+                        {store.genomeBuild}
+                    </span>
 
                     <div style={inlineStyles.spacer} />
 

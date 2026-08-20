@@ -43,8 +43,9 @@ export class FusionViewerStore {
     @observable public activeTranscript5pId: string = '';
     @observable public activeTranscript3pId: string = '';
 
-    // Genome build selection (GRCh38 or GRCh37)
-    @observable public genomeBuild: GenomeBuild = 'GRCh38';
+    // Genome build declared by the STUDY (from its referenceGenome). Used only
+    // as a fallback -- see the genomeBuild computed below.
+    @observable public studyGenomeBuild: GenomeBuild = 'GRCh38';
 
     // UI display toggles
     @observable public showPromoter: boolean = true;
@@ -113,7 +114,7 @@ export class FusionViewerStore {
                     referenceGenome as keyof typeof GENOME_ID_TO_GENOME_BUILD
                 ];
             if (mapped === 'GRCh37' || mapped === 'GRCh38') {
-                this.genomeBuild = mapped;
+                this.studyGenomeBuild = mapped;
             }
         }
         this.selectedFusionId = '';
@@ -211,36 +212,26 @@ export class FusionViewerStore {
      * not loaded or connectionType is missing.
      */
     /**
-     * The distinct per-row genome builds present in the loaded data, sorted.
-     * Rows whose build the export omitted are excluded -- an absent value is
-     * unknown, not a disagreement.
-     */
-    @computed
-    public get rowGenomeBuilds(): string[] {
-        const builds = new Set<string>();
-        this.fusions.forEach(f => {
-            if (f.ncbiBuild) {
-                builds.add(f.ncbiBuild);
-            }
-        });
-        return Array.from(builds).sort();
-    }
-
-    /**
-     * True when any row's coordinates are on a build other than the one the
-     * viewer resolves transcripts against.
+     * The genome build the viewer resolves transcripts against.
      *
-     * Transcripts are fetched for a single study-level build, so a mismatched
-     * row has its breakpoint compared against the wrong exon coordinates --
-     * a shift of hundreds of kilobases, which silently lands the breakpoint in
-     * the wrong exon or off the transcript entirely. Surfaced in the UI rather
-     * than corrected here: picking the right models per row would mean fetching
-     * two builds at once, and the underlying problem is that a cBioPortal study
-     * cannot declare more than one reference genome.
+     * The SELECTED ROW is the authority, not the study: a cBioPortal study can
+     * declare only one referenceGenome, but an export may mix builds (msktarget
+     * declares GRCh37 while its RNA fusion rows carry GRCh38 coordinates).
+     * Trusting the study there would compare a GRCh38 breakpoint against GRCh37
+     * exon bounds -- a shift of hundreds of kilobases, which lands the
+     * breakpoint in the wrong exon or off the transcript entirely.
+     *
+     * The transcript remotes read this inside their invoke, so switching to a
+     * row on another build re-fetches against the correct one. Falls back to
+     * the study build when the export omits the row's build.
      */
     @computed
-    public get hasBuildMismatch(): boolean {
-        return this.rowGenomeBuilds.some(b => b !== this.genomeBuild);
+    public get genomeBuild(): GenomeBuild {
+        const rowBuild = this.selectedFusion && this.selectedFusion.ncbiBuild;
+        if (rowBuild === 'GRCh37' || rowBuild === 'GRCh38') {
+            return rowBuild;
+        }
+        return this.studyGenomeBuild;
     }
 
     @computed
