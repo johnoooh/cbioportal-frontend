@@ -153,11 +153,32 @@ describe('structuralVariantAdapter', () => {
 
         // --- Fusion name ---
 
-        it('uses eventInfo when present', () => {
-            const sv = makeSV({ eventInfo: 'NUP214::ABL1' });
+        it('derives the label from site symbols even when eventInfo is present', () => {
+            // Upstream changed eventInfo from a name ("EML4-ALK Fusion") to a
+            // classification ("Antisense Fusion {EML4-ALK}"). It is not a name,
+            // so it must never be used as the displayed fusion label.
+            const sv = makeSV({
+                eventInfo: 'Antisense Fusion {GENE_B-GENE_A}',
+            });
             const fe = convertStructuralVariantToFusionEvent(sv);
 
-            assert.equal(fe.fusion, 'NUP214::ABL1');
+            assert.equal(fe.fusion, 'GENE_A::GENE_B');
+        });
+
+        it('preserves the raw eventInfo string on eventLabel', () => {
+            const sv = makeSV({
+                eventInfo: 'Antisense Fusion {GENE_B-GENE_A}',
+            });
+            const fe = convertStructuralVariantToFusionEvent(sv);
+
+            assert.equal(fe.eventLabel, 'Antisense Fusion {GENE_B-GENE_A}');
+        });
+
+        it('leaves eventLabel empty when upstream sends no eventInfo', () => {
+            const sv = makeSV({ eventInfo: '' });
+            const fe = convertStructuralVariantToFusionEvent(sv);
+
+            assert.equal(fe.eventLabel, '');
         });
 
         it('constructs gene1::gene2 when eventInfo is empty', () => {
@@ -343,6 +364,21 @@ describe('structuralVariantAdapter', () => {
     // isRnaDerived classification (RNA fusion vs DNA SV)
     // -----------------------------------------------------------------------
     describe('isRnaDerived classification', () => {
+        it('an explicit "Fusion" variant class => RNA-derived', () => {
+            // The only signal the real msktarget export populates: both support
+            // columns are "NA" and RNA fusions live in a "_structural_variants"
+            // profile, so without this they would classify as DNA SVs.
+            const sv = makeSV({
+                variantClass: 'Fusion',
+                rnaSupport: 'NA',
+                dnaSupport: 'NA',
+                molecularProfileId: 'msktarget_structural_variants',
+            });
+            assert.isTrue(
+                convertStructuralVariantToFusionEvent(sv).isRnaDerived
+            );
+        });
+
         it('rnaSupport present => RNA-derived', () => {
             const sv = makeSV({ rnaSupport: 'yes', dnaSupport: '' });
             assert.isTrue(
@@ -351,7 +387,11 @@ describe('structuralVariantAdapter', () => {
         });
 
         it('dnaSupport only (no rnaSupport) => DNA SV', () => {
-            const sv = makeSV({ rnaSupport: '', dnaSupport: 'yes' });
+            const sv = makeSV({
+                variantClass: 'INVERSION',
+                rnaSupport: '',
+                dnaSupport: 'yes',
+            });
             assert.isFalse(
                 convertStructuralVariantToFusionEvent(sv).isRnaDerived
             );
@@ -377,6 +417,7 @@ describe('structuralVariantAdapter', () => {
 
         it('support empty => falls back to molecular profile (structural_variants => DNA)', () => {
             const sv = makeSV({
+                variantClass: 'INVERSION',
                 rnaSupport: '',
                 dnaSupport: '',
                 molecularProfileId: 'study_structural_variants',
@@ -388,6 +429,7 @@ describe('structuralVariantAdapter', () => {
 
         it('nothing conclusive => defaults to DNA SV', () => {
             const sv = makeSV({
+                variantClass: '',
                 rnaSupport: '',
                 dnaSupport: '',
                 molecularProfileId: 'mystery_profile',

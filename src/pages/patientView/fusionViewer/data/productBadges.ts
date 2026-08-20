@@ -10,7 +10,17 @@ import { describeCallerSource } from './callerSource';
  */
 export type CallerState =
     | { kind: 'called'; callers: string[]; rawCallMethod: string }
-    | { kind: 'userSelected'; calledTranscriptLabel: string };
+    | { kind: 'userSelected'; calledTranscriptLabel: string }
+    | { kind: 'noCallerInfo' };
+
+/**
+ * Call-method values that identify no caller and duplicate information the
+ * viewer already shows. Upstream sets Variant Class to a bare "Fusion" on RNA
+ * rows, so caller identity (A/F/S) is simply absent from the export; rendering
+ * it would put a pill reading "Fusion" beside the frame pill. DNA variant
+ * classes (INVERSION, TRANSLOCATION, ...) are informative and still render.
+ */
+const UNINFORMATIVE_CALL_METHODS = new Set(['FUSION', 'SV']);
 
 function called5p(fusion: FusionEvent): string {
     return fusion.gene1.selectedTranscriptId;
@@ -41,9 +51,17 @@ export function resolveCallerState(
     active3pId: string
 ): CallerState {
     if (isCalledCombo(fusion, active5pId, active3pId)) {
+        const callers = describeCallerSource(fusion.callMethod);
+        const raw = (fusion.callMethod || '').trim();
+        if (
+            callers.length === 0 &&
+            (!raw || UNINFORMATIVE_CALL_METHODS.has(raw.toUpperCase()))
+        ) {
+            return { kind: 'noCallerInfo' };
+        }
         return {
             kind: 'called',
-            callers: describeCallerSource(fusion.callMethod),
+            callers,
             rawCallMethod: fusion.callMethod,
         };
     }

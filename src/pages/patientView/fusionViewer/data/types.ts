@@ -90,6 +90,15 @@ export interface FusionEvent {
     gene1: GenePartner;
     gene2: GenePartner | null;
     fusion: string;
+    /**
+     * The upstream `Event Info` string, verbatim. This is NOT a fusion name:
+     * cBioPortal uses it for classification text such as
+     * "Antisense Fusion {EML4-ALK}" or "Protein Fusion: in frame {EML4:ALK}",
+     * and its wording has changed between exports. Displayed only as
+     * supplementary detail; the fusion label itself is always derived from the
+     * resolved 5'/3' partner symbols.
+     */
+    eventLabel: string;
     totalReadSupport: number;
     callMethod: string;
     frameCallMethod: string;

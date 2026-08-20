@@ -217,19 +217,14 @@ export class FusionViewerStore {
         const resolved = this.resolvedFusion;
         if (!resolved) return raw;
 
-        // If the raw fusion label was the algorithmic "A::B" fallback (no eventInfo),
-        // rebuild it from the canonical 5'/3' symbols so the displayed name matches
-        // the rendered orientation. When the label came from eventInfo (free-text
-        // like "{TMPRSS2:ERG}"), preserve it — eventInfo is already canonical.
-        const rawSymbolLabel = raw.gene2
-            ? `${raw.gene1.symbol}::${raw.gene2.symbol}`
-            : raw.gene1.symbol;
-        const fusionLabel =
-            raw.fusion === rawSymbolLabel
-                ? resolved.threePrime
-                    ? `${resolved.fivePrime.symbol}::${resolved.threePrime.symbol}`
-                    : resolved.fivePrime.symbol
-                : raw.fusion;
+        // Always rebuild the label from the canonical 5'/3' symbols so the
+        // displayed name matches the rendered orientation. This used to be
+        // conditional on the raw label round-tripping to "A::B", which silently
+        // handed control to upstream's `Event Info` free text whenever its
+        // wording changed. Classification text lives on `eventLabel` instead.
+        const fusionLabel = resolved.threePrime
+            ? `${resolved.fivePrime.symbol}::${resolved.threePrime.symbol}`
+            : resolved.fivePrime.symbol;
 
         return {
             ...raw,

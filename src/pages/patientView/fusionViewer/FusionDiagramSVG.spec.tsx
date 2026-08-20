@@ -63,6 +63,7 @@ function makeFusion(overrides: Partial<FusionEvent> = {}): FusionEvent {
             siteDescription: '',
         },
         fusion: 'A::B',
+        eventLabel: '',
         totalReadSupport: 5,
         callMethod: 'FUSION',
         frameCallMethod: 'In_frame',

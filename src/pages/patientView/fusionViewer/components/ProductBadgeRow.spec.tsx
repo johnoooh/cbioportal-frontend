@@ -50,3 +50,17 @@ describe('ProductBadgeRow', () => {
         assert.include(wrapper.text(), 'TRANSLOCATION');
     });
 });
+
+describe('ProductBadgeRow with no caller identity', () => {
+    it('renders the frame pill alone, with no empty caller pill', () => {
+        const wrapper = mount(
+            <ProductBadgeRow
+                frame={getFrameStatusDisplay(FrameStatus.Unknown)}
+                callerState={{ kind: 'noCallerInfo' }}
+            />
+        );
+        assert.include(wrapper.text(), 'Frame unknown');
+        assert.notInclude(wrapper.text(), 'Fusion');
+        assert.equal(wrapper.find('span[data-test="caller-pill"]').length, 0);
+    });
+});

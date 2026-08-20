@@ -38,6 +38,12 @@ function FramePill({ frame }: { frame: FrameStatusDisplay }) {
 }
 
 function CallerPill({ callerState }: { callerState: CallerState }) {
+    // Nothing to say about provenance: the export carries no caller identity
+    // and its variant class is generic. Render no pill rather than an empty one.
+    if (callerState.kind === 'noCallerInfo') {
+        return null;
+    }
+
     if (callerState.kind === 'userSelected') {
         return (
             <DefaultTooltip
@@ -58,6 +64,7 @@ function CallerPill({ callerState }: { callerState: CallerState }) {
                         border: '1px dashed #bbb',
                         ...inlineStyles.hoverCue,
                     }}
+                    data-test="caller-pill"
                 >
                     Alternate isoform
                 </span>
@@ -93,6 +100,7 @@ function CallerPill({ callerState }: { callerState: CallerState }) {
                     ...inlineStyles.metaBadge,
                     ...inlineStyles.hoverCue,
                 }}
+                data-test="caller-pill"
             >
                 {callerState.rawCallMethod}
             </span>

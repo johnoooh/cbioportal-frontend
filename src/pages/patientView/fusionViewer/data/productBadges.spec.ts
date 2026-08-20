@@ -54,3 +54,36 @@ describe('resolveCallerState', () => {
         }
     });
 });
+
+describe('resolveCallerState with no caller identity', () => {
+    // Upstream now sets Variant Class to the generic "Fusion" on RNA rows, so
+    // the caller letters (A/F/S) are absent from the export entirely. A pill
+    // reading "Fusion" next to the frame pill is pure noise -- suppress it.
+    const generic = {
+        gene1: { selectedTranscriptId: 'ENST_5' },
+        gene2: { selectedTranscriptId: 'ENST_3' },
+        callMethod: 'Fusion',
+    } as FusionEvent;
+
+    it('reports no caller info for a generic RNA fusion class', () => {
+        const s = resolveCallerState(generic, 'ENST_5', 'ENST_3');
+        assert.equal(s.kind, 'noCallerInfo');
+    });
+
+    it('still reports the raw class for a DNA structural variant', () => {
+        const sv = { ...generic, callMethod: 'INVERSION' } as FusionEvent;
+        const s = resolveCallerState(sv, 'ENST_5', 'ENST_3');
+        assert.equal(s.kind, 'called');
+        if (s.kind === 'called') {
+            assert.equal(s.rawCallMethod, 'INVERSION');
+        }
+    });
+
+    it('reports no caller info when the class is missing altogether', () => {
+        const blank = { ...generic, callMethod: '' } as FusionEvent;
+        assert.equal(
+            resolveCallerState(blank, 'ENST_5', 'ENST_3').kind,
+            'noCallerInfo'
+        );
+    });
+});

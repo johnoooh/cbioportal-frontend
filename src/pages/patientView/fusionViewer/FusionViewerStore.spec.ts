@@ -64,6 +64,7 @@ function makeFusion(overrides: Partial<FusionEvent> = {}): FusionEvent {
             siteDescription: 'Exon 6',
         },
         fusion: 'ALK::EML4',
+        eventLabel: '',
         totalReadSupport: 15,
         callMethod: 'FUSION',
         frameCallMethod: 'In_frame',
@@ -96,6 +97,26 @@ describe('FusionViewerStore', () => {
 
     afterEach(() => {
         disposeAutorun();
+    });
+
+    // -------------------------------------------------------------------
+    // canonicalFusion labelling
+    // -------------------------------------------------------------------
+    describe('canonicalFusion label', () => {
+        it('labels the fusion from resolved partner symbols, not a free-text event string', () => {
+            // Upstream `Event Info` is classification text, not a name. A label
+            // that did not come from the resolved partners must be replaced,
+            // otherwise the viewer shows "Antisense Fusion {EML4-ALK}" as the
+            // fusion's identity and hides the computed 5'->3' orientation.
+            const f = makeFusion({
+                fusion: 'Antisense Fusion {EML4-ALK}',
+                eventLabel: 'Antisense Fusion {EML4-ALK}',
+            });
+
+            store.setStructuralVariants([f] as any);
+
+            assert.equal(store.canonicalFusion!.fusion, 'ALK::EML4');
+        });
     });
 
     // -------------------------------------------------------------------

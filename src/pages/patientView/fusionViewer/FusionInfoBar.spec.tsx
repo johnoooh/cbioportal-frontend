@@ -23,6 +23,7 @@ function makeFusion(): FusionEvent {
             siteDescription: 'exon',
         },
         fusion: 'TMPRSS2::ERG',
+        eventLabel: '',
         totalReadSupport: 10,
         callMethod: '',
         frameCallMethod: '',
