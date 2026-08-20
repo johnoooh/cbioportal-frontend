@@ -35,21 +35,45 @@ export const EXON_LABEL_FONT_SIZE = 8;
 // decision it drives is whether a label is legible enough to draw at all.
 const CHAR_WIDTH_RATIO = 0.6;
 
-/**
- * True when an exon label can be drawn inside its block without colliding with
- * the neighbouring labels.
- *
- * The ladder floors block pitch at MIN_EXON_W + EXON_GAP (6px) while a label
- * like "E12" needs ~14px, so on a dense fusion every label overlapped its
- * neighbours roughly twofold and the numbers ran together. Labels that do not
- * fit are omitted; the exon number stays available on hover.
- */
-export function exonLabelFits(
-    blockWidth: number,
+/** Estimated rendered width of a short SVG text label, in px. */
+export function estimateLabelWidth(
     label: string,
     fontSize: number = EXON_LABEL_FONT_SIZE
-): boolean {
-    return blockWidth >= label.length * fontSize * CHAR_WIDTH_RATIO;
+): number {
+    return label.length * fontSize * CHAR_WIDTH_RATIO;
+}
+
+/**
+ * Choose which exon labels to draw, greedily from left to right.
+ *
+ * Returns the keys of the labels to render. A label is kept when it clears the
+ * right edge of the last kept label, so labels may overhang their own block
+ * into the gaps around it -- what matters is that two DRAWN labels never
+ * collide, not that each fits its block. Judging each label against its own
+ * block alone (the previous rule) ignored that free space and, because the
+ * test then turned on digit count, dropped "E10" while keeping the equally
+ * cramped "E9" -- giving a sparse and visibly arbitrary set.
+ *
+ * Input order does not matter: minus-strand gene tracks draw their exons
+ * right-to-left, so the list is sorted by centre before the walk rather than
+ * trusting callers to pre-sort.
+ */
+export function selectVisibleExonLabels(
+    labels: Array<{ key: string; centerX: number; text: string }>,
+    fontSize: number = EXON_LABEL_FONT_SIZE,
+    minGap: number = 2
+): Set<string> {
+    const keep = new Set<string>();
+    let lastRight = -Infinity;
+    const ordered = [...labels].sort((a, b) => a.centerX - b.centerX);
+    ordered.forEach(({ key, centerX, text }) => {
+        const half = estimateLabelWidth(text, fontSize) / 2;
+        if (centerX - half >= lastRight) {
+            keep.add(key);
+            lastRight = centerX + half + minGap;
+        }
+    });
+    return keep;
 }
 
 // ---------------------------------------------------------------------------

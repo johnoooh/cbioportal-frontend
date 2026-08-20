@@ -6,7 +6,8 @@ import {
     select3PrimeDomains,
     computeJunctionX,
     computeFusionExonLayout,
-    exonLabelFits,
+    selectVisibleExonLabels,
+    estimateLabelWidth,
     retainedExonsInOrder,
     genomicToExonX,
     fivePrimeContributesNoCoding,
@@ -1271,17 +1272,55 @@ describe('computeFusionExonLayout width budget', () => {
     });
 });
 
-describe('exonLabelFits', () => {
-    it('rejects a label wider than its block', () => {
-        assert.isFalse(exonLabelFits(6, 'E12'));
+describe('selectVisibleExonLabels', () => {
+    const mk = (n: number, pitch: number) =>
+        Array.from({ length: n }, (_, i) => ({
+            key: `k${i}`,
+            centerX: i * pitch,
+            text: `E${i + 1}`,
+        }));
+
+    it('keeps every label when they are far apart', () => {
+        const keep = selectVisibleExonLabels(mk(5, 60));
+        assert.equal(keep.size, 5);
     });
 
-    it('accepts a label that fits its block', () => {
-        assert.isTrue(exonLabelFits(40, 'E12'));
+    it('drops labels that would overlap their neighbour', () => {
+        const keep = selectVisibleExonLabels(mk(40, 6));
+        assert.isBelow(keep.size, 40);
+        assert.isAbove(keep.size, 0);
     });
 
-    it('scales with label length, so E1 fits where E10 does not', () => {
-        assert.isTrue(exonLabelFits(12, 'E1'));
-        assert.isFalse(exonLabelFits(12, 'E10'));
+    it('never lets two kept labels overlap', () => {
+        const items = mk(40, 6);
+        const keep = selectVisibleExonLabels(items);
+
+        const kept = items.filter(i => keep.has(i.key));
+        for (let i = 1; i < kept.length; i++) {
+            const prevRight =
+                kept[i - 1].centerX + estimateLabelWidth(kept[i - 1].text) / 2;
+            const currLeft =
+                kept[i].centerX - estimateLabelWidth(kept[i].text) / 2;
+            assert.isAtLeast(currLeft, prevRight);
+        }
+    });
+
+    it('always keeps the first label', () => {
+        const items = mk(40, 6);
+        assert.isTrue(selectVisibleExonLabels(items).has('k0'));
+    });
+
+    it('does not depend on input order (minus-strand tracks draw right-to-left)', () => {
+        const items = mk(6, 60);
+        const forward = selectVisibleExonLabels(items);
+        const reversed = selectVisibleExonLabels([...items].reverse());
+        assert.deepEqual(
+            Array.from(forward).sort(),
+            Array.from(reversed).sort()
+        );
+    });
+
+    it('handles an empty list', () => {
+        assert.equal(selectVisibleExonLabels([]).size, 0);
     });
 });

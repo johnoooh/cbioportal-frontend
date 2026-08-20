@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef } from 'react';
 import { gsap } from 'gsap';
 import { Exon, TranscriptData, COLOR_BREAKPOINT } from '../data/types';
 import { ExonTooltip, BreakpointTooltip } from './ExonTooltip';
-import { exonLabelFits } from './fusionProductHelpers';
+import { selectVisibleExonLabels } from './fusionProductHelpers';
 
 // Gene-track exon labels are a point smaller than the product ladder's.
 const GENE_EXON_LABEL_FONT_SIZE = 7;
@@ -634,6 +634,24 @@ export const GeneTrack: React.FC<GeneTrackProps> = ({
         // end. On minus-strand tracks the exons are drawn right-to-left in
         // transcription order, so we invert the index for numbering.
         const totalExons = exons.length;
+
+        // Pre-pass: decide which exon numbers get a label. Needs every label's
+        // centre up front, because the choice is made by walking left to right
+        // and skipping whatever would collide with the last one kept. Exons are
+        // already in drawing order (left-to-right after the 5'->3' mirror).
+        const visibleLabelKeys = selectVisibleExonLabels(
+            exons.map((exon, idx) => {
+                const a = toSvg(exon.start);
+                const b = toSvg(exon.end);
+                return {
+                    key: String(idx),
+                    centerX: Math.min(a, b) + Math.max(5, Math.abs(b - a)) / 2,
+                    text: `E${strand === '-' ? totalExons - idx : idx + 1}`,
+                };
+            }),
+            GENE_EXON_LABEL_FONT_SIZE
+        );
+
         exons.forEach((exon, idx) => {
             // start maps right of end on mirrored (minus-strand) genes, so take
             // the left edge / width orientation-agnostically.
@@ -713,11 +731,7 @@ export const GeneTrack: React.FC<GeneTrackProps> = ({
             // ExonTooltip that wraps every exon.
             if (
                 retainedExonNumbers !== undefined &&
-                exonLabelFits(
-                    ewFull,
-                    `E${displayNumber}`,
-                    GENE_EXON_LABEL_FONT_SIZE
-                )
+                visibleLabelKeys.has(String(idx))
             ) {
                 elements.push(
                     <text

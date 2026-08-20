@@ -12,7 +12,7 @@ import {
     PRODUCT_HEIGHT,
     computeFusionExonLayout,
     retainedExonsInOrder,
-    exonLabelFits,
+    selectVisibleExonLabels,
     EXON_LABEL_FONT_SIZE,
 } from './fusionProductHelpers';
 import { splitExonByFivePrimeUtr } from './GeneTrack';
@@ -429,6 +429,15 @@ export const FusionProduct: React.FC<FusionProductProps> = ({
 
     const { topY, startX, trailingX, junctionX, junctionY } = layout;
 
+    const visibleLabelKeys = selectVisibleExonLabels(
+        slots.map(slot => ({
+            key: slot.key,
+            centerX: slot.x + slot.width / 2,
+            text: slot.labelText,
+        })),
+        EXON_LABEL_FONT_SIZE
+    );
+
     return (
         <g>
             {slots.map(slot => (
@@ -449,13 +458,13 @@ export const FusionProduct: React.FC<FusionProductProps> = ({
                 </rect>
             ))}
 
-            {/* Only labels that actually fit their block are drawn. The ladder
-                floors block pitch at 6px while "E12" needs ~14px, so drawing
-                every label on a dense fusion ran the numbers together into an
-                unreadable "E3E4E5E6E7E8..." smear. The exon number for a block
-                too narrow to label is still available by hovering it. */}
+            {/* Labels are decimated left-to-right so that no two DRAWN labels
+                collide; a label may overhang its own narrow block into the
+                surrounding gaps. Drawing one per exon ran the numbers together
+                into an unreadable "E3E4E5E6E7E8..." smear. The number for a
+                skipped exon is still available by hovering its block. */}
             {slots
-                .filter(slot => exonLabelFits(slot.width, slot.labelText))
+                .filter(slot => visibleLabelKeys.has(slot.key))
                 .map(slot => (
                     <text
                         key={`label-${slot.key}`}
