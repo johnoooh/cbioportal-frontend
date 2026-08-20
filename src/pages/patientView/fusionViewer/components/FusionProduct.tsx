@@ -12,6 +12,8 @@ import {
     PRODUCT_HEIGHT,
     computeFusionExonLayout,
     retainedExonsInOrder,
+    exonLabelFits,
+    EXON_LABEL_FONT_SIZE,
 } from './fusionProductHelpers';
 import { splitExonByFivePrimeUtr } from './GeneTrack';
 export { computeJunctionX } from './fusionProductHelpers';
@@ -139,7 +141,15 @@ function computeLayout(
 
     const slots: ExonSlot[] = [];
     // An exon is "UTR" in the product when its retained span is entirely
-    // 5′UTR (no coding) — same rule as the gene track's half-height UTRs.
+    // 5′UTR (no coding).
+    //
+    // This is DELIBERATELY coarser than the gene track. GeneTrack splits an
+    // exon at the CDS boundary and draws each piece separately, so an exon
+    // whose translation starts partway through (e.g. DCAF11 ENST00000446197
+    // exon 2) renders as a half-height stub stepping up to a full-height
+    // block. Here the whole exon is one block, so a partial exon is drawn as
+    // coding. At product block widths a sub-exon split would be a sliver of a
+    // few pixels; the gene track above is where that detail is legible.
     const exonIsAllUtr = (
         exon: { start: number; end: number },
         utrs: TranscriptData['utrs']
@@ -434,25 +444,34 @@ export const FusionProduct: React.FC<FusionProductProps> = ({
                     height={slot.isUtr ? PRODUCT_HEIGHT / 2 : PRODUCT_HEIGHT}
                     fill={slot.fill}
                     rx={2}
-                />
+                >
+                    <title>{slot.labelText}</title>
+                </rect>
             ))}
 
-            {slots.map(slot => (
-                <text
-                    key={`label-${slot.key}`}
-                    ref={(el: SVGTextElement | null) => {
-                        if (el) labelRefs.current.set(slot.key, el);
-                        else labelRefs.current.delete(slot.key);
-                    }}
-                    x={slot.x + slot.width / 2}
-                    y={topY + PRODUCT_HEIGHT + LABEL_BELOW}
-                    textAnchor="middle"
-                    fontSize={8}
-                    fill={slot.fill}
-                >
-                    {slot.labelText}
-                </text>
-            ))}
+            {/* Only labels that actually fit their block are drawn. The ladder
+                floors block pitch at 6px while "E12" needs ~14px, so drawing
+                every label on a dense fusion ran the numbers together into an
+                unreadable "E3E4E5E6E7E8..." smear. The exon number for a block
+                too narrow to label is still available by hovering it. */}
+            {slots
+                .filter(slot => exonLabelFits(slot.width, slot.labelText))
+                .map(slot => (
+                    <text
+                        key={`label-${slot.key}`}
+                        ref={(el: SVGTextElement | null) => {
+                            if (el) labelRefs.current.set(slot.key, el);
+                            else labelRefs.current.delete(slot.key);
+                        }}
+                        x={slot.x + slot.width / 2}
+                        y={topY + PRODUCT_HEIGHT + LABEL_BELOW}
+                        textAnchor="middle"
+                        fontSize={EXON_LABEL_FONT_SIZE}
+                        fill={slot.fill}
+                    >
+                        {slot.labelText}
+                    </text>
+                ))}
 
             <text
                 x={startX - 4}

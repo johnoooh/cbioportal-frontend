@@ -27,6 +27,30 @@ export const EXON_GAP = 2;
 export const JUNCTION_GAP = 14;
 // Floor on a drawn exon width so very short exons stay visible / clickable.
 const MIN_EXON_W = 4;
+// Font size of the per-exon labels under the product ladder.
+export const EXON_LABEL_FONT_SIZE = 8;
+// Rough advance width of one character as a fraction of font size, for the
+// common sans-serif digits/letters used in exon labels ("E12"). Deliberately
+// an estimate: measuring real text would need a rendered DOM, and the only
+// decision it drives is whether a label is legible enough to draw at all.
+const CHAR_WIDTH_RATIO = 0.6;
+
+/**
+ * True when an exon label can be drawn inside its block without colliding with
+ * the neighbouring labels.
+ *
+ * The ladder floors block pitch at MIN_EXON_W + EXON_GAP (6px) while a label
+ * like "E12" needs ~14px, so on a dense fusion every label overlapped its
+ * neighbours roughly twofold and the numbers ran together. Labels that do not
+ * fit are omitted; the exon number stays available on hover.
+ */
+export function exonLabelFits(
+    blockWidth: number,
+    label: string,
+    fontSize: number = EXON_LABEL_FONT_SIZE
+): boolean {
+    return blockWidth >= label.length * fontSize * CHAR_WIDTH_RATIO;
+}
 
 // ---------------------------------------------------------------------------
 // Exon selection logic
@@ -370,8 +394,44 @@ export function computeFusionExonLayout(
         [...retained5p, ...retained3p].reduce((s, e) => s + exonLen(e), 0) || 1;
     const availableWidth =
         width - JUNCTION_GAP - EXON_GAP * Math.max(0, totalExons - 1) - 20;
-    const scaleW = (e: Exon) =>
-        Math.max(MIN_EXON_W, (exonLen(e) / totalLen) * availableWidth);
+
+    // Apportion `availableWidth` proportionally, but honour MIN_EXON_W WITHOUT
+    // overspending the box. Flooring after a proportional split (the previous
+    // behaviour) silently inflated the total whenever short exons hit the
+    // floor, so the ladder and the trailing 3' label overran the panel. Instead
+    // settle which exons are floored first, then re-apportion what is left over
+    // the rest -- repeating, because giving a floored exon its minimum shrinks
+    // the budget and can push another exon below the floor in turn.
+    const allExons = [...retained5p, ...retained3p];
+    const widthOf = new Map<Exon, number>();
+    let freeExons = allExons;
+    let budget = availableWidth;
+
+    if (allExons.length * MIN_EXON_W > availableWidth) {
+        // Physically impossible to honour the floor. Split evenly and let the
+        // blocks be thin rather than let the ladder escape its box.
+        const even = Math.max(0.5, availableWidth / allExons.length);
+        allExons.forEach(e => widthOf.set(e, even));
+    } else {
+        for (;;) {
+            const freeLen = freeExons.reduce((s, e) => s + exonLen(e), 0) || 1;
+            const tooSmall = freeExons.filter(
+                e => (exonLen(e) / freeLen) * budget < MIN_EXON_W
+            );
+            if (tooSmall.length === 0) {
+                freeExons.forEach(e =>
+                    widthOf.set(e, (exonLen(e) / freeLen) * budget)
+                );
+                break;
+            }
+            tooSmall.forEach(e => widthOf.set(e, MIN_EXON_W));
+            budget -= tooSmall.length * MIN_EXON_W;
+            freeExons = freeExons.filter(e => !tooSmall.includes(e));
+            if (freeExons.length === 0) break;
+        }
+    }
+
+    const scaleW = (e: Exon) => widthOf.get(e) ?? MIN_EXON_W;
     const widths5p = retained5p.map(scaleW);
     const widths3p = retained3p.map(scaleW);
 

@@ -6,6 +6,7 @@ import {
     select3PrimeDomains,
     computeJunctionX,
     computeFusionExonLayout,
+    exonLabelFits,
     retainedExonsInOrder,
     genomicToExonX,
     fivePrimeContributesNoCoding,
@@ -1211,5 +1212,76 @@ describe('resolveProductBreakpoints', () => {
                 { breakpoint5p: 111, breakpoint3p: undefined }
             );
         });
+    });
+});
+
+describe('computeFusionExonLayout width budget', () => {
+    // Widths were floored at MIN_EXON_W *after* the proportional split, so when
+    // many exons were short enough to hit the floor the drawn total exceeded the
+    // box and the ladder (plus the trailing 3' label) overran the panel.
+    const shortExons = (n: number, base: number) =>
+        Array.from({ length: n }, (_, i) => ({
+            number: i + 1,
+            start: base + i * 100,
+            end: base + i * 100 + 5,
+        }));
+
+    it('keeps the last block inside the box when most exons hit the floor', () => {
+        const layout = computeFusionExonLayout(
+            shortExons(20, 0),
+            [{ number: 21, start: 100000, end: 140000 }],
+            0,
+            300
+        );
+
+        const lastRight =
+            layout.xs3p[layout.xs3p.length - 1] +
+            layout.widths3p[layout.widths3p.length - 1];
+
+        assert.isAtMost(lastRight, 300);
+    });
+
+    it('still fills the box when the exons comfortably fit', () => {
+        const layout = computeFusionExonLayout(
+            [{ number: 1, start: 0, end: 10000 }],
+            [{ number: 2, start: 50000, end: 60000 }],
+            0,
+            400
+        );
+
+        const lastRight =
+            layout.xs3p[layout.xs3p.length - 1] +
+            layout.widths3p[layout.widths3p.length - 1];
+
+        assert.isAtMost(lastRight, 400);
+        assert.isAbove(lastRight, 300);
+    });
+
+    it('never returns a negative or zero width', () => {
+        const layout = computeFusionExonLayout(
+            shortExons(60, 0),
+            shortExons(60, 500000),
+            0,
+            200
+        );
+
+        [...layout.widths5p, ...layout.widths3p].forEach(w => {
+            assert.isAbove(w, 0);
+        });
+    });
+});
+
+describe('exonLabelFits', () => {
+    it('rejects a label wider than its block', () => {
+        assert.isFalse(exonLabelFits(6, 'E12'));
+    });
+
+    it('accepts a label that fits its block', () => {
+        assert.isTrue(exonLabelFits(40, 'E12'));
+    });
+
+    it('scales with label length, so E1 fits where E10 does not', () => {
+        assert.isTrue(exonLabelFits(12, 'E1'));
+        assert.isFalse(exonLabelFits(12, 'E10'));
     });
 });
