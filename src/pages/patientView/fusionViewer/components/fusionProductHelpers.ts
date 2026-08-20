@@ -35,6 +35,72 @@ export const EXON_LABEL_FONT_SIZE = 8;
 // decision it drives is whether a label is legible enough to draw at all.
 const CHAR_WIDTH_RATIO = 0.6;
 
+/**
+ * Split one exon's drawn block into coding / UTR pieces, in absolute px.
+ *
+ * The product ladder used to collapse each exon to a single boolean ("is this
+ * exon entirely untranslated?"), which meant a terminal exon with a short
+ * coding head and a long UTR tail -- IGF2R's final exon is the case -- drew at
+ * full height as the largest apparently-coding block in the whole product,
+ * while the protein-domain backbone underneath visibly ran out long before it.
+ *
+ * `splitFn` is injected to avoid importing GeneTrack here (GeneTrack imports
+ * this module, and a cycle would be worse than a parameter).
+ *
+ * Blocks are drawn 5'->3' left-to-right, so on a minus-strand gene the genomic
+ * order within the block is reversed: the 3'UTR sits at the LOWER coordinate
+ * but must still be drawn on the right.
+ */
+export function exonBlockSegments(
+    exon: { start: number; end: number },
+    utrs: { start: number; end: number; type: 'five_prime' | 'three_prime' }[],
+    strand: '+' | '-',
+    blockX: number,
+    blockWidth: number,
+    splitFn: (
+        e: { start: number; end: number },
+        u: typeof utrs
+    ) => { start: number; end: number; isUtr: boolean }[] = defaultSplit
+): { x: number; width: number; isUtr: boolean }[] {
+    const pieces = splitFn(exon, utrs || []);
+    if (pieces.length <= 1) {
+        return [
+            {
+                x: blockX,
+                width: blockWidth,
+                isUtr: pieces.length === 1 ? pieces[0].isUtr : false,
+            },
+        ];
+    }
+
+    const len = Math.max(1, exon.end - exon.start + 1);
+    const ordered =
+        strand === '-'
+            ? [...pieces].sort((a, b) => b.start - a.start)
+            : [...pieces].sort((a, b) => a.start - b.start);
+
+    return ordered.map(p => {
+        const pieceLen = Math.max(0, p.end - p.start + 1);
+        const offset = strand === '-' ? exon.end - p.end : p.start - exon.start;
+        return {
+            x: blockX + (offset / len) * blockWidth,
+            width: (pieceLen / len) * blockWidth,
+            isUtr: p.isUtr,
+        };
+    });
+}
+
+/**
+ * Fallback splitter used when no `splitFn` is supplied: treats the exon as one
+ * coding piece. Real callers pass GeneTrack's splitExonByUtr.
+ */
+function defaultSplit(e: {
+    start: number;
+    end: number;
+}): { start: number; end: number; isUtr: boolean }[] {
+    return [{ ...e, isUtr: false }];
+}
+
 /** Estimated rendered width of a short SVG text label, in px. */
 export function estimateLabelWidth(
     label: string,

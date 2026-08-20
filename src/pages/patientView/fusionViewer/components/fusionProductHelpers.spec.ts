@@ -1,4 +1,5 @@
 import { assert } from 'chai';
+import { splitExonByUtr } from './GeneTrack';
 import {
     select5PrimeExons,
     select3PrimeExons,
@@ -7,6 +8,7 @@ import {
     computeJunctionX,
     computeFusionExonLayout,
     selectVisibleExonLabels,
+    exonBlockSegments,
     estimateLabelWidth,
     retainedExonsInOrder,
     genomicToExonX,
@@ -1322,5 +1324,82 @@ describe('selectVisibleExonLabels', () => {
 
     it('handles an empty list', () => {
         assert.equal(selectVisibleExonLabels([]).size, 0);
+    });
+});
+
+describe('exonBlockSegments', () => {
+    const exon = { start: 1000, end: 1099 }; // 100bp
+    const utrs = [{ start: 1050, end: 1099, type: 'three_prime' as const }];
+
+    it('returns one full-width coding segment when there is no UTR', () => {
+        const segs = exonBlockSegments(exon, [], '+', 200, 50, splitExonByUtr);
+        assert.deepEqual(segs, [{ x: 200, width: 50, isUtr: false }]);
+    });
+
+    it('places the 3-prime UTR on the RIGHT of a plus-strand block', () => {
+        const segs = exonBlockSegments(
+            exon,
+            utrs,
+            '+',
+            200,
+            100,
+            splitExonByUtr
+        );
+
+        assert.equal(segs.length, 2);
+        assert.isFalse(segs[0].isUtr);
+        assert.isTrue(segs[1].isUtr);
+        assert.closeTo(segs[1].x, 250, 1.5);
+        assert.closeTo(segs[1].width, 50, 1.5);
+    });
+
+    it('mirrors on the minus strand so the UTR still sits 3-prime (right)', () => {
+        // On a minus-strand gene the 3'UTR is at the LOWER genomic coordinate,
+        // but the product draws 5'->3' left-to-right, so it must still land right.
+        const minusUtrs = [
+            { start: 1000, end: 1049, type: 'three_prime' as const },
+        ];
+        const segs = exonBlockSegments(
+            exon,
+            minusUtrs,
+            '-',
+            200,
+            100,
+            splitExonByUtr
+        );
+
+        assert.equal(segs.length, 2);
+        assert.isFalse(segs[0].isUtr);
+        assert.isTrue(segs[1].isUtr);
+        assert.closeTo(segs[1].x, 250, 1.5);
+    });
+
+    it('covers the whole block when the exon is entirely UTR', () => {
+        const segs = exonBlockSegments(
+            exon,
+            [{ start: 1000, end: 1099, type: 'three_prime' as const }],
+            '+',
+            200,
+            100,
+            splitExonByUtr
+        );
+        assert.equal(segs.length, 1);
+        assert.isTrue(segs[0].isUtr);
+        assert.closeTo(segs[0].width, 100, 0.01);
+    });
+
+    it('never emits a segment beyond the block', () => {
+        const segs = exonBlockSegments(
+            exon,
+            utrs,
+            '+',
+            200,
+            100,
+            splitExonByUtr
+        );
+        segs.forEach(s => {
+            assert.isAtLeast(s.x, 200);
+            assert.isAtMost(s.x + s.width, 300.01);
+        });
     });
 });

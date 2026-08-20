@@ -13,9 +13,10 @@ import {
     computeFusionExonLayout,
     retainedExonsInOrder,
     selectVisibleExonLabels,
+    exonBlockSegments,
     EXON_LABEL_FONT_SIZE,
 } from './fusionProductHelpers';
-import { splitExonByFivePrimeUtr } from './GeneTrack';
+import { splitExonByUtr } from './GeneTrack';
 export { computeJunctionX } from './fusionProductHelpers';
 
 const LABEL_BELOW = 14;
@@ -60,9 +61,11 @@ interface ExonSlot {
     width: number;
     labelText: string;
     fill: string;
-    /** True when the retained exon is entirely 5′UTR (non-coding) — drawn
-     *  half-height so it reads as transcribed-but-not-translated. */
-    isUtr: boolean;
+    /** Coding / UTR pieces of this exon's block, in absolute px. UTR pieces
+     *  draw half-height so they read as transcribed-but-not-translated. Split
+     *  at sub-exon resolution: a terminal exon with a long UTR tail must not
+     *  read as one large coding block. */
+    segments: { x: number; width: number; isUtr: boolean }[];
 }
 
 interface ProductLayout {
@@ -140,23 +143,25 @@ function computeLayout(
     const junctionY = topY + PRODUCT_HEIGHT / 2;
 
     const slots: ExonSlot[] = [];
-    // An exon is "UTR" in the product when its retained span is entirely
-    // 5′UTR (no coding).
-    //
-    // This is DELIBERATELY coarser than the gene track. GeneTrack splits an
-    // exon at the CDS boundary and draws each piece separately, so an exon
-    // whose translation starts partway through (e.g. DCAF11 ENST00000446197
-    // exon 2) renders as a half-height stub stepping up to a full-height
-    // block. Here the whole exon is one block, so a partial exon is drawn as
-    // coding. At product block widths a sub-exon split would be a sliver of a
-    // few pixels; the gene track above is where that detail is legible.
-    const exonIsAllUtr = (
+    // Coding / UTR pieces of one exon's block, at sub-exon resolution — the
+    // same rule the gene track uses, so the two panels agree. The product used
+    // to collapse each exon to a single boolean, which drew a terminal exon
+    // with a short coding head and a long UTR tail (IGF2R's final exon) as the
+    // largest apparently-coding block in the whole product.
+    const segmentsFor = (
         exon: { start: number; end: number },
-        utrs: TranscriptData['utrs']
-    ): boolean => {
-        const segs = splitExonByFivePrimeUtr(exon, utrs || []);
-        return segs.length > 0 && segs.every(s => s.isUtr);
-    };
+        transcript: TranscriptData,
+        blockX: number,
+        blockWidth: number
+    ) =>
+        exonBlockSegments(
+            exon,
+            transcript.utrs || [],
+            transcript.strand,
+            blockX,
+            blockWidth,
+            splitExonByUtr
+        );
 
     retained5p.forEach((exon, i) => {
         const displayN =
@@ -168,7 +173,12 @@ function computeLayout(
             width: widths5p[i],
             labelText: `E${displayN}`,
             fill: COLOR_5PRIME,
-            isUtr: exonIsAllUtr(exon, forteTranscript5p.utrs),
+            segments: segmentsFor(
+                exon,
+                forteTranscript5p,
+                xs5p[i],
+                widths5p[i]
+            ),
         });
     });
 
@@ -182,7 +192,12 @@ function computeLayout(
             width: widths3p[i],
             labelText: `E${displayN}`,
             fill: COLOR_3PRIME,
-            isUtr: exonIsAllUtr(exon, forteTranscript3p.utrs),
+            segments: segmentsFor(
+                exon,
+                forteTranscript3p,
+                xs3p[i],
+                widths3p[i]
+            ),
         });
     });
 
@@ -316,7 +331,9 @@ export const FusionProduct: React.FC<FusionProductProps> = ({
 }) => {
     const rectRefs = useRef<Map<string, SVGRectElement>>(new Map());
     const labelRefs = useRef<Map<string, SVGTextElement>>(new Map());
-    const prevSlotsRef = useRef<Map<string, ExonSlot>>(new Map());
+    const prevSlotsRef = useRef<Map<string, { x: number; width: number }>>(
+        new Map()
+    );
 
     const layout = computeLayout(
         gene1,
@@ -345,11 +362,25 @@ export const FusionProduct: React.FC<FusionProductProps> = ({
 
         const prevSlots = prevSlotsRef.current;
 
-        slots.forEach(slot => {
-            const rect = rectRefs.current.get(slot.key);
-            const label = labelRefs.current.get(slot.key);
-            const prev = prevSlots.get(slot.key);
+        const units = slots.flatMap(slot =>
+            slot.segments.map((seg, i) => ({
+                key: `${slot.key}:${i}`,
+                labelKey: slot.key,
+                x: seg.x,
+                width: seg.width,
+            }))
+        );
+
+        units.forEach(unit => {
+            const rect = rectRefs.current.get(unit.key);
+            // Only the first piece of an exon carries that exon's label, so a
+            // multi-piece exon does not tween its label once per piece.
+            const label = unit.key.endsWith(':0')
+                ? labelRefs.current.get(unit.labelKey)
+                : undefined;
+            const prev = prevSlots.get(unit.key);
             if (!rect) return;
+            const slot = unit;
 
             // Always force opacity back to 1 first. GSAP mutates the DOM
             // directly and opacity is NOT a React-controlled prop here, so an
@@ -387,8 +418,8 @@ export const FusionProduct: React.FC<FusionProductProps> = ({
             }
         });
 
-        const nextPrev = new Map<string, ExonSlot>();
-        slots.forEach(s => nextPrev.set(s.key, s));
+        const nextPrev = new Map<string, { x: number; width: number }>();
+        units.forEach(u => nextPrev.set(u.key, { x: u.x, width: u.width }));
         prevSlotsRef.current = nextPrev;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [transitionKey]);
@@ -440,23 +471,33 @@ export const FusionProduct: React.FC<FusionProductProps> = ({
 
     return (
         <g>
-            {slots.map(slot => (
-                <rect
-                    key={slot.key}
-                    ref={(el: SVGRectElement | null) => {
-                        if (el) rectRefs.current.set(slot.key, el);
-                        else rectRefs.current.delete(slot.key);
-                    }}
-                    x={slot.x}
-                    y={slot.isUtr ? topY + PRODUCT_HEIGHT / 4 : topY}
-                    width={slot.width}
-                    height={slot.isUtr ? PRODUCT_HEIGHT / 2 : PRODUCT_HEIGHT}
-                    fill={slot.fill}
-                    rx={2}
-                >
-                    <title>{slot.labelText}</title>
-                </rect>
-            ))}
+            {/* One rect per coding/UTR piece, not per exon: an exon whose
+                translation stops partway through draws a full-height coding
+                head stepping down to a half-height UTR tail. */}
+            {slots.flatMap(slot =>
+                slot.segments.map((seg, i) => {
+                    const segKey = `${slot.key}:${i}`;
+                    return (
+                        <rect
+                            key={segKey}
+                            ref={(el: SVGRectElement | null) => {
+                                if (el) rectRefs.current.set(segKey, el);
+                                else rectRefs.current.delete(segKey);
+                            }}
+                            x={seg.x}
+                            y={seg.isUtr ? topY + PRODUCT_HEIGHT / 4 : topY}
+                            width={seg.width}
+                            height={
+                                seg.isUtr ? PRODUCT_HEIGHT / 2 : PRODUCT_HEIGHT
+                            }
+                            fill={slot.fill}
+                            rx={2}
+                        >
+                            <title>{slot.labelText}</title>
+                        </rect>
+                    );
+                })
+            )}
 
             {/* Labels are decimated left-to-right so that no two DRAWN labels
                 collide; a label may overhang its own narrow block into the

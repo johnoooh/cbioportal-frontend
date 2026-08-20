@@ -5,7 +5,7 @@ import {
     computeRetainedShadeX,
     getGeneTrackHeight,
     GeneTrack,
-    splitExonByFivePrimeUtr,
+    splitExonByUtr,
     applyUpstreamExtension,
 } from './GeneTrack';
 import { TranscriptData } from '../data/types';
@@ -500,19 +500,19 @@ describe('GeneTrack — layout invariants', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Helper unit tests for splitExonByFivePrimeUtr
+// Helper unit tests for splitExonByUtr
 // ---------------------------------------------------------------------------
 
-describe('splitExonByFivePrimeUtr', () => {
+describe('splitExonByUtr', () => {
     const exon = { start: 100, end: 300 };
 
     it('returns single non-UTR segment when no UTRs present', () => {
-        const segs = splitExonByFivePrimeUtr(exon, []);
+        const segs = splitExonByUtr(exon, []);
         assert.deepEqual(segs, [{ start: 100, end: 300, isUtr: false }]);
     });
 
     it('returns single UTR segment when exon is entirely inside a 5′ UTR', () => {
-        const segs = splitExonByFivePrimeUtr(exon, [
+        const segs = splitExonByUtr(exon, [
             { start: 50, end: 400, type: 'five_prime' },
         ]);
         assert.equal(segs.length, 1);
@@ -523,7 +523,7 @@ describe('splitExonByFivePrimeUtr', () => {
 
     it('splits at UTR/CDS boundary — two adjacent segments', () => {
         // UTR covers 100-199, CDS covers 200-300
-        const segs = splitExonByFivePrimeUtr(exon, [
+        const segs = splitExonByUtr(exon, [
             { start: 100, end: 199, type: 'five_prime' },
         ]);
         assert.equal(segs.length, 2);
@@ -539,7 +539,7 @@ describe('splitExonByFivePrimeUtr', () => {
 
     it('mid-exon UTR produces CDS|UTR|CDS — three segments', () => {
         // UTR is in the middle: 150-200
-        const segs = splitExonByFivePrimeUtr(exon, [
+        const segs = splitExonByUtr(exon, [
             { start: 150, end: 200, type: 'five_prime' },
         ]);
         assert.equal(segs.length, 3);
@@ -553,7 +553,7 @@ describe('splitExonByFivePrimeUtr', () => {
 
     it('multiple non-overlapping UTRs produce alternating CDS/UTR segments', () => {
         // Two UTR islands: 110-130 and 160-180
-        const segs = splitExonByFivePrimeUtr(exon, [
+        const segs = splitExonByUtr(exon, [
             { start: 110, end: 130, type: 'five_prime' },
             { start: 160, end: 180, type: 'five_prime' },
         ]);
@@ -563,22 +563,25 @@ describe('splitExonByFivePrimeUtr', () => {
         assert.deepEqual(utrFlags, [false, true, false, true, false]);
     });
 
-    it('ignores 3′ UTRs — exon renders as single non-UTR segment', () => {
-        const segs = splitExonByFivePrimeUtr(exon, [
+    it('splits on 3′ UTRs too — a wholly untranslated exon is all UTR', () => {
+        // A terminal exon that is entirely 3′UTR (IGF2R E48 is the real case)
+        // must not be drawn as coding: it is transcribed but never translated.
+        const segs = splitExonByUtr(exon, [
             { start: 100, end: 300, type: 'three_prime' },
         ]);
-        assert.deepEqual(segs, [{ start: 100, end: 300, isUtr: false }]);
+        assert.deepEqual(segs, [{ start: 100, end: 300, isUtr: true }]);
     });
 
-    it('ignores 3′ UTR when mixed with 5′ UTR — only 5′ splits', () => {
-        // 5′ UTR: 100-150, 3′ UTR: 200-300 — only 5′ should split
-        const segs = splitExonByFivePrimeUtr(exon, [
+    it('splits on both UTR flavours, leaving the CDS between them', () => {
+        // 5′ UTR 100-150, CDS 151-199, 3′ UTR 200-300
+        const segs = splitExonByUtr(exon, [
             { start: 100, end: 150, type: 'five_prime' },
             { start: 200, end: 300, type: 'three_prime' },
         ]);
-        assert.equal(segs.length, 2);
-        assert.equal(segs[0].isUtr, true);
-        assert.equal(segs[1].isUtr, false);
+        assert.deepEqual(
+            segs.map(x => x.isUtr),
+            [true, false, true]
+        );
     });
 });
 
@@ -689,16 +692,16 @@ describe('GeneTrack — cue B: UTR half-height rendering', () => {
         assert.equal(Number(cdsRects.first().prop('height')), EXON_HEIGHT);
     });
 
-    it('3′ UTR is ignored — exon renders as a single full-height CDS rect', () => {
+    it('an all-3′UTR exon renders half-height, not as coding', () => {
         const wrapper = mountGeneTrack({
             exons: [{ number: 1, start: 100, end: 300 }],
             utrs: [{ start: 100, end: 300, type: 'three_prime' }],
         });
-        assert.equal(wrapper.find('[data-testid="exon-utr-rect"]').length, 0);
-        const cdsRects = wrapper.find('[data-testid="exon-cds-rect"]');
-        assert.isAtLeast(cdsRects.length, 1);
-        cdsRects.forEach(r => {
-            assert.equal(Number(r.prop('height')), EXON_HEIGHT);
+        assert.equal(wrapper.find('[data-testid="exon-cds-rect"]').length, 0);
+        const utrRects = wrapper.find('[data-testid="exon-utr-rect"]');
+        assert.isAtLeast(utrRects.length, 1);
+        utrRects.forEach(r => {
+            assert.equal(Number(r.prop('height')), EXON_HEIGHT / 2);
         });
     });
 

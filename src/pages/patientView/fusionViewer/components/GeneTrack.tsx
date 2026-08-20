@@ -209,24 +209,30 @@ const BADGE_LABEL = 'VISUALIZED FUSION';
 const NAME_PILL_WIDTH = 160;
 
 // ---------------------------------------------------------------------------
-// 5′ UTR helper
+// UTR helper
 // ---------------------------------------------------------------------------
 
 /**
- * Split a single exon into CDS and 5′-UTR segments so each can be rendered
- * at the correct height (full vs half). Three-prime UTRs are intentionally
- * ignored here — they affect protein only, not the promoter/breakpoint-
- * interpretation question this cue is meant to answer.
+ * Split a single exon into coding and UTR segments so each can be rendered at
+ * the correct height (full vs half), following the UCSC/IGV thin-UTR
+ * convention.
+ *
+ * BOTH UTR flavours count. 3′UTRs were once excluded on the grounds that they
+ * affect protein only and not the promoter/breakpoint question this cue was
+ * introduced for — but the cue is read as "this part is translated", and a
+ * long terminal 3′UTR drawn at full height reads as a large coding region that
+ * does not exist. IGF2R's final exon is the case that exposes it: mostly
+ * untranslated, yet drawn as the biggest coding block in the fusion product,
+ * with the protein-domain backbone visibly running out long before it ends.
  */
-export function splitExonByFivePrimeUtr(
+export function splitExonByUtr(
     exon: { start: number; end: number },
     utrs: { start: number; end: number; type: 'five_prime' | 'three_prime' }[]
 ): { start: number; end: number; isUtr: boolean }[] {
-    const fiveUtrs = utrs.filter(u => u.type === 'five_prime');
-    if (fiveUtrs.length === 0) return [{ ...exon, isUtr: false }];
+    if (utrs.length === 0) return [{ ...exon, isUtr: false }];
 
     // Sort ascending for predictable iteration
-    const sorted = [...fiveUtrs].sort((a, b) => a.start - b.start);
+    const sorted = [...utrs].sort((a, b) => a.start - b.start);
 
     let segments: { start: number; end: number; isUtr: boolean }[] = [
         { start: exon.start, end: exon.end, isUtr: false },
@@ -677,7 +683,7 @@ export const GeneTrack: React.FC<GeneTrackProps> = ({
 
             // Split the exon into CDS and 5′-UTR segments so UTR portions
             // render at half height (UCSC/IGV convention). Always on.
-            const segments = splitExonByFivePrimeUtr(exon, transcript.utrs);
+            const segments = splitExonByUtr(exon, transcript.utrs);
 
             // One tooltip wrapper per exon; all segments live inside it so
             // the hover target is the conceptual exon, not individual pieces.
