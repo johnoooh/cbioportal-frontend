@@ -3,6 +3,10 @@ import { useLayoutEffect, useRef } from 'react';
 import { gsap } from 'gsap';
 import { Exon, TranscriptData, COLOR_BREAKPOINT } from '../data/types';
 import { ExonTooltip, BreakpointTooltip } from './ExonTooltip';
+import { exonLabelFits } from './fusionProductHelpers';
+
+// Gene-track exon labels are a point smaller than the product ladder's.
+const GENE_EXON_LABEL_FONT_SIZE = 7;
 
 // ---------------------------------------------------------------------------
 // Public helpers
@@ -701,16 +705,27 @@ export const GeneTrack: React.FC<GeneTrackProps> = ({
                 </ExonTooltip>
             );
 
-            // Exon number label below the exon block — only when highlighting is active.
-            // Centered over the full exon extent (not per-segment).
-            if (retainedExonNumbers !== undefined) {
+            // Exon number label below the exon block — only when highlighting is
+            // active, and only when the label fits inside the block. Centered
+            // over the full exon extent (not per-segment). Blocks floor at 5px
+            // while "E10" needs ~13px, so on a many-exon gene the labels used to
+            // overlap into an unreadable run; the number stays available via the
+            // ExonTooltip that wraps every exon.
+            if (
+                retainedExonNumbers !== undefined &&
+                exonLabelFits(
+                    ewFull,
+                    `E${displayNumber}`,
+                    GENE_EXON_LABEL_FONT_SIZE
+                )
+            ) {
                 elements.push(
                     <text
                         key={`exon-label-${transcript.transcriptId}-${displayNumber}`}
                         x={ex + ewFull / 2}
                         y={yPos + EXON_HEIGHT + EXON_LABEL_OFFSET}
                         textAnchor="middle"
-                        fontSize={7}
+                        fontSize={GENE_EXON_LABEL_FONT_SIZE}
                         fill={isRetained ? color : '#aaa'}
                         opacity={isRetained ? opacity : 0.7}
                     >

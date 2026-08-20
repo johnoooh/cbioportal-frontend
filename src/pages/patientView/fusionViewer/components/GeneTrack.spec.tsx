@@ -1074,3 +1074,62 @@ describe('applyUpstreamExtension', () => {
         assert.equal(upstreamWindow, 2000);
     });
 });
+
+describe('GeneTrack exon label crowding', () => {
+    // One <text> per exon with no collision handling produced the unreadable
+    // "E5E6E7E8E9E10..." run under a many-exon gene like IGF2R. Exon blocks floor
+    // at 5px while "E10" at fontSize 7 needs ~13px, so labels that cannot fit
+    // their block are omitted; every exon still carries an ExonTooltip on hover.
+    function mountManyExons(exonCount: number, width: number) {
+        const exons = Array.from({ length: exonCount }, (_, i) => ({
+            number: i + 1,
+            start: 1000 + i * 200,
+            end: 1000 + i * 200 + 60,
+        }));
+        const t = makeTranscript({
+            exons,
+            txStart: 1000,
+            txEnd: 1000 + exonCount * 200,
+        });
+        return mount(
+            <svg>
+                <GeneTrack
+                    symbol="GENE_A"
+                    chromosome="1"
+                    position={1000 + exonCount * 100}
+                    strand={'+' as const}
+                    siteDescription=""
+                    forteTranscript={t}
+                    color={GENE_COLOR}
+                    x={0}
+                    y={0}
+                    width={width}
+                    is5Prime={true}
+                    showPromoter={false}
+                    retainedExonNumbers={
+                        new Set(
+                            Array.from({ length: exonCount }, (_, i) => i + 1)
+                        )
+                    }
+                />
+            </svg>
+        );
+    }
+
+    const exonLabels = (wrapper: any) =>
+        wrapper.findWhere(
+            (n: any) => n.type() === 'text' && /^E\d+$/.test(n.text())
+        );
+
+    it('omits labels that cannot fit their exon block', () => {
+        const wrapper = mountManyExons(48, 400);
+
+        assert.isBelow(exonLabels(wrapper).length, 48);
+    });
+
+    it('still labels every exon when there is room', () => {
+        const wrapper = mountManyExons(4, 900);
+
+        assert.equal(exonLabels(wrapper).length, 4);
+    });
+});
